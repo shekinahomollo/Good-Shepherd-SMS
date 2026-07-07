@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment files — NEVER commit these
+.env
+*/.env
+backend/.env
+frontend/.env
+
+# Build output
+dist/
+build/
+*/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Prisma
+backend/prisma/migrations/*.sql
+
+# Vite
+frontend/.vite/

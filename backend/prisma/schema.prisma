@@ -1,0 +1,454 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  TEACHER
+  PARENT
+}
+
+enum GradingType {
+  DESCRIPTIVE
+  NUMERICAL
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum AttendStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum SubStatus {
+  DRAFT
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+enum AssignType {
+  HOLIDAY
+  CLASSWORK
+  PROJECT
+  TEST
+}
+
+enum GradeType {
+  ASSIGNMENT
+  TEST
+  TERMINAL
+  ANNUAL
+}
+
+enum SkillRating {
+  NOT_YET
+  DEVELOPING
+  ACHIEVED
+  EXCEEDING
+}
+
+enum Audience {
+  ALL
+  CLASS
+  GRADE_LEVEL
+  PARENTS
+  TEACHERS
+}
+
+enum SessionType {
+  MORNING
+  AFTERNOON
+  FULL_DAY
+}
+
+// ─── USERS ────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  role         Role
+  firstName    String
+  lastName     String
+  phone        String?
+  avatarUrl    String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  taughtClasses      Class[]               @relation("ClassTeacher")
+  subjectAssignments ClassSubjectTeacher[]
+  parentLinks        ParentStudentLink[]
+  recordedAttendance AttendanceSession[]
+  createdAssignments Assignment[]
+  recordedGrades     Grade[]
+  skillAssessments   SkillAssessment[]
+  generatedReports   ReportCard[]
+  announcements      Announcement[]
+  notifications      Notification[]
+  announcementReads  AnnouncementRead[]
+}
+
+// ─── ACADEMIC STRUCTURE ───────────────────────────────────────
+
+model AcademicYear {
+  id         String   @id @default(uuid())
+  label      String   @unique
+  startDate  DateTime
+  endDate    DateTime
+  isCurrent  Boolean  @default(false)
+
+  terms              Term[]
+  classes            Class[]
+  enrollments        StudentEnrollment[]
+  subjectAssignments ClassSubjectTeacher[]
+}
+
+model Term {
+  id             String       @id @default(uuid())
+  academicYearId String
+  termNumber     Int
+  startDate      DateTime
+  endDate        DateTime
+  label          String
+
+  academicYear     AcademicYear      @relation(fields: [academicYearId], references: [id])
+  assignments      Assignment[]
+  grades           Grade[]
+  skillAssessments SkillAssessment[]
+  reportCards      ReportCard[]
+}
+
+model GradeLevel {
+  id          String      @id @default(uuid())
+  name        String      @unique
+  code        String      @unique
+  gradingType GradingType
+  sortOrder   Int
+
+  classes          Class[]
+  subjects         Subject[]
+  skillDescriptors SkillDescriptor[]
+}
+
+model Class {
+  id             String @id @default(uuid())
+  gradeLevelId   String
+  academicYearId String
+  classTeacherId String
+  name           String
+  roomNumber     String?
+  capacity       Int?
+
+  gradeLevel      GradeLevel            @relation(fields: [gradeLevelId], references: [id])
+  academicYear    AcademicYear          @relation(fields: [academicYearId], references: [id])
+  classTeacher    User                  @relation("ClassTeacher", fields: [classTeacherId], references: [id])
+  enrollments     StudentEnrollment[]
+  subjectTeachers ClassSubjectTeacher[]
+  assignments     Assignment[]
+  grades          Grade[]
+  attendanceSessions AttendanceSession[]
+  reportCards     ReportCard[]
+  announcements   Announcement[]
+}
+
+// ─── STUDENTS ─────────────────────────────────────────────────
+
+model Student {
+  id              String   @id @default(uuid())
+  admissionNumber String   @unique
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime
+  gender          Gender
+  photoUrl        String?
+  isActive        Boolean  @default(true)
+  joinedDate      DateTime @default(now())
+
+  enrollments       StudentEnrollment[]
+  parentLinks       ParentStudentLink[]
+  submissions       Submission[]
+  grades            Grade[]
+  skillAssessments  SkillAssessment[]
+  attendanceRecords AttendanceRecord[]
+  reportCards       ReportCard[]
+}
+
+model StudentEnrollment {
+  id             String   @id @default(uuid())
+  studentId      String
+  classId        String
+  academicYearId String
+  enrollmentDate DateTime @default(now())
+
+  student      Student      @relation(fields: [studentId], references: [id])
+  class        Class        @relation(fields: [classId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@unique([studentId, academicYearId])
+}
+
+model ParentStudentLink {
+  id               String  @id @default(uuid())
+  parentUserId     String
+  studentId        String
+  relationship     String
+  isPrimaryContact Boolean @default(false)
+
+  parent  User    @relation(fields: [parentUserId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+}
+
+// ─── SUBJECTS ─────────────────────────────────────────────────
+
+model Subject {
+  id           String  @id @default(uuid())
+  name         String
+  code         String
+  gradeLevelId String
+  isCore       Boolean @default(true)
+
+  gradeLevel    GradeLevel            @relation(fields: [gradeLevelId], references: [id])
+  classTeachers ClassSubjectTeacher[]
+  assignments   Assignment[]
+  grades        Grade[]
+  skillDescriptors SkillDescriptor[]
+}
+
+model ClassSubjectTeacher {
+  id             String @id @default(uuid())
+  classId        String
+  subjectId      String
+  teacherUserId  String
+  academicYearId String
+
+  class        Class        @relation(fields: [classId], references: [id])
+  subject      Subject      @relation(fields: [subjectId], references: [id])
+  teacher      User         @relation(fields: [teacherUserId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+
+  @@unique([classId, subjectId, academicYearId])
+}
+
+// ─── ATTENDANCE ───────────────────────────────────────────────
+
+model AttendanceSession {
+  id           String      @id @default(uuid())
+  classId      String
+  sessionDate  DateTime
+  sessionType  SessionType @default(FULL_DAY)
+  recordedById String
+  recordedAt   DateTime    @default(now())
+
+  class       Class             @relation(fields: [classId], references: [id])
+  recordedBy  User              @relation(fields: [recordedById], references: [id])
+  records     AttendanceRecord[]
+
+  @@unique([classId, sessionDate, sessionType])
+}
+
+model AttendanceRecord {
+  id        String       @id @default(uuid())
+  sessionId String
+  studentId String
+  status    AttendStatus
+  notes     String?
+
+  session AttendanceSession @relation(fields: [sessionId], references: [id])
+  student Student           @relation(fields: [studentId], references: [id])
+
+  @@unique([sessionId, studentId])
+}
+
+// ─── ASSIGNMENTS ──────────────────────────────────────────────
+
+model Assignment {
+  id             String     @id @default(uuid())
+  title          String
+  description    String?
+  classId        String
+  subjectId      String
+  termId         String
+  createdById    String
+  assignedDate   DateTime   @default(now())
+  dueDate        DateTime
+  maxScore       Float?
+  assignmentType AssignType @default(CLASSWORK)
+  isPublished    Boolean    @default(false)
+
+  class       Class                  @relation(fields: [classId], references: [id])
+  subject     Subject                @relation(fields: [subjectId], references: [id])
+  term        Term                   @relation(fields: [termId], references: [id])
+  createdBy   User                   @relation(fields: [createdById], references: [id])
+  attachments AssignmentAttachment[]
+  submissions Submission[]
+  grades      Grade[]
+}
+
+model AssignmentAttachment {
+  id           String   @id @default(uuid())
+  assignmentId String
+  fileName     String
+  fileUrl      String
+  fileType     String
+  fileSizeKb   Int
+  uploadedAt   DateTime @default(now())
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+}
+
+model Submission {
+  id           String    @id @default(uuid())
+  assignmentId String
+  studentId    String
+  submittedAt  DateTime?
+  status       SubStatus @default(DRAFT)
+  notes        String?
+
+  assignment Assignment       @relation(fields: [assignmentId], references: [id])
+  student    Student          @relation(fields: [studentId], references: [id])
+  files      SubmissionFile[]
+}
+
+model SubmissionFile {
+  id           String   @id @default(uuid())
+  submissionId String
+  fileName     String
+  fileUrl      String
+  fileType     String
+  uploadedAt   DateTime @default(now())
+
+  submission Submission @relation(fields: [submissionId], references: [id])
+}
+
+// ─── GRADES ───────────────────────────────────────────────────
+
+model Grade {
+  id           String    @id @default(uuid())
+  studentId    String
+  subjectId    String
+  classId      String
+  termId       String
+  assignmentId String?
+  gradeType    GradeType
+  rawScore     Float
+  maxScore     Float
+  percentage   Float
+  gradeLabel   String?
+  remarks      String?
+  recordedById String
+  recordedAt   DateTime  @default(now())
+
+  student    Student     @relation(fields: [studentId], references: [id])
+  subject    Subject     @relation(fields: [subjectId], references: [id])
+  class      Class       @relation(fields: [classId], references: [id])
+  term       Term        @relation(fields: [termId], references: [id])
+  assignment Assignment? @relation(fields: [assignmentId], references: [id])
+  recordedBy User        @relation(fields: [recordedById], references: [id])
+}
+
+// ─── KINDERGARTEN SKILLS ──────────────────────────────────────
+
+model SkillDescriptor {
+  id            String @id @default(uuid())
+  subjectId     String
+  gradeLevelId  String
+  skillName     String
+  skillCategory String
+  sortOrder     Int
+
+  subject      Subject           @relation(fields: [subjectId], references: [id])
+  gradeLevel   GradeLevel        @relation(fields: [gradeLevelId], references: [id])
+  assessments  SkillAssessment[]
+}
+
+model SkillAssessment {
+  id                String      @id @default(uuid())
+  studentId         String
+  skillDescriptorId String
+  termId            String
+  rating            SkillRating
+  remarks           String?
+  recordedById      String
+
+  student         Student         @relation(fields: [studentId], references: [id])
+  skillDescriptor SkillDescriptor @relation(fields: [skillDescriptorId], references: [id])
+  term            Term            @relation(fields: [termId], references: [id])
+  recordedBy      User            @relation(fields: [recordedById], references: [id])
+}
+
+// ─── REPORT CARDS ─────────────────────────────────────────────
+
+model ReportCard {
+  id              String   @id @default(uuid())
+  studentId       String
+  termId          String
+  classId         String
+  generatedAt     DateTime @default(now())
+  generatedById   String
+  pdfUrl          String?
+  teacherComment  String?
+  classPosition   Int?
+  isPublished     Boolean  @default(false)
+  totalPercentage Float?
+
+  student     Student @relation(fields: [studentId], references: [id])
+  term        Term    @relation(fields: [termId], references: [id])
+  class       Class   @relation(fields: [classId], references: [id])
+  generatedBy User    @relation(fields: [generatedById], references: [id])
+}
+
+// ─── COMMUNICATION ────────────────────────────────────────────
+
+model Announcement {
+  id            String    @id @default(uuid())
+  title         String
+  body          String
+  createdById   String
+  audience      Audience  @default(ALL)
+  targetClassId String?
+  isPublished   Boolean   @default(false)
+  publishAt     DateTime?
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  createdBy   User               @relation(fields: [createdById], references: [id])
+  targetClass Class?             @relation(fields: [targetClassId], references: [id])
+  reads       AnnouncementRead[]
+}
+
+model AnnouncementRead {
+  id             String   @id @default(uuid())
+  announcementId String
+  userId         String
+  readAt         DateTime @default(now())
+
+  announcement Announcement @relation(fields: [announcementId], references: [id])
+  user         User         @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id            String   @id @default(uuid())
+  userId        String
+  type          String
+  referenceId   String?
+  referenceType String?
+  message       String
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
