@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import { prisma }            from '../lib/prisma'
+import { asString }          from '../utils/query'
 
 export const getAllClasses = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -24,7 +25,7 @@ export const getAllClasses = async (req: Request, res: Response): Promise<void> 
 
 export const getClass = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
 
     const cls = await prisma.class.findUnique({
       where: { id },
@@ -46,15 +47,15 @@ export const getClass = async (req: Request, res: Response): Promise<void> => {
 
 export const getClassRoster = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { classId } = req.params
+    const classId = asString(req.params.classId)
 
     const enrollments = await prisma.studentEnrollment.findMany({
-      where:   { classId },
+      where: { classId },
       include: { student: true },
       orderBy: { student: { lastName: 'asc' } },
     })
 
-    res.json({ students: enrollments.map(e => e.student) })
+    res.json({ students: enrollments.map((e: { student: unknown }) => e.student) })
   } catch (err) {
     res.status(500).json({ error: 'Server error', details: err })
   }
@@ -79,7 +80,7 @@ export const createClass = async (req: Request, res: Response): Promise<void> =>
 
 export const updateClass = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
     const { name, roomNumber, capacity, classTeacherId } = req.body
 
     const cls = await prisma.class.update({

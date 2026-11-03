@@ -11,9 +11,18 @@ export default function AnnouncementsPage() {
   const createMutation        = useCreateAnnouncement()
   const markReadMutation      = useMarkRead()
 
-  const announcements = data?.announcements || []
-  const unreadCount   = announcements.filter((a: any) =>
-    !a.reads?.some((r: any) => r.userId === user?.id)
+  const announcements: Array<{
+    id: string
+    title: string
+    body: string
+    audience: string
+    author: string
+    date: string
+    isRead?: boolean
+    reads?: Array<{ userId: string }>
+  }> = data?.announcements || []
+  const unreadCount = announcements.filter((a) =>
+    !a.reads?.some((r) => r.userId === user?.id)
   ).length
 
   const [selected,  setSelected]  = useState<string | null>(null)
@@ -37,7 +46,7 @@ export default function AnnouncementsPage() {
     setSelected(id)
   }
 
-  const selected_ann = announcements.find((a: any) => a.id === selected)
+  const selected_ann = announcements.find((a) => a.id === selected)
 
   if (isLoading) {
     return (
@@ -134,10 +143,10 @@ export default function AnnouncementsPage() {
 
       {/* Announcement list */}
       <div className="space-y-3">
-        {announcements.map(a => (
+        {announcements.map((a) => (
           <div
             key={a.id}
-            onClick={() => markRead(a.id)}
+            onClick={() => handleMarkRead(a.id)}
             className={`bg-white rounded-sms border p-5 cursor-pointer transition-all hover:shadow-sm
               ${!a.isRead ? 'border-ocean/30 border-l-4 border-l-teal' : 'border-ocean/10'}`}
           >

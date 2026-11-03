@@ -1,14 +1,18 @@
 import { Request, Response }  from 'express'
 import { prisma }             from '../lib/prisma'
+import { asString, firstQueryValue } from '../utils/query'
 
 // ── POST /api/attendance/sessions ─────────────────────────────
 // Teacher marks attendance for their class for a given date
 export const markAttendance = async (req: Request, res: Response): Promise<void> => {
   try {
     const { classId, sessionDate, sessionType = 'FULL_DAY', records } = req.body
-    const { userId } = (req as any).user
+    const userId = asString((req as any).user?.userId)
 
     // records = [{ studentId, status, notes? }]
+    const typedRecords = Array.isArray(records)
+      ? records as Array<{ studentId: string; status: string; notes?: string | null }>
+      : []
 
     // Upsert the session
     const session = await prisma.attendanceSession.upsert({
@@ -29,7 +33,7 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
     })
 
     // Upsert each student record
-    const upserts = records.map((r: any) =>
+    const upserts = typedRecords.map((r) =>
       prisma.attendanceRecord.upsert({
         where: {
           sessionId_studentId: {
@@ -37,12 +41,12 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
             studentId: r.studentId,
           },
         },
-        update: { status: r.status, notes: r.notes ?? null },
+        update: { status: r.status as any, notes: r.notes ?? null },
         create: {
           sessionId: session.id,
           studentId: r.studentId,
-          status:    r.status,
-          notes:     r.notes ?? null,
+          status: r.status as any,
+          notes: r.notes ?? null,
         },
       })
     )
@@ -59,14 +63,16 @@ export const markAttendance = async (req: Request, res: Response): Promise<void>
 // Get session for a class on a specific date
 export const getSession = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { classId, date, sessionType = 'FULL_DAY' } = req.query
+    const classId = firstQueryValue(req.query.classId)
+    const date = firstQueryValue(req.query.date)
+    const sessionType = (firstQueryValue(req.query.sessionType) as any) || 'FULL_DAY'
 
     const session = await prisma.attendanceSession.findUnique({
       where: {
         classId_sessionDate_sessionType: {
-          classId:     classId as string,
-          sessionDate: new Date(date as string),
-          sessionType: sessionType as any,
+          classId: classId || '',
+          sessionDate: date ? new Date(date) : new Date(),
+          sessionType,
         },
       },
       include: {
@@ -86,11 +92,12 @@ export const getSession = async (req: Request, res: Response): Promise<void> => 
 // Get all sessions for a class (monthly report)
 export const getClassAttendance = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { classId }         = req.params
-    const { month, year }     = req.query
+    const classId = asString(req.params.classId)
+    const month = Number(firstQueryValue(req.query.month) || 1)
+    const year = Number(firstQueryValue(req.query.year) || new Date().getFullYear())
 
-    const start = new Date(Number(year), Number(month) - 1, 1)
-    const end   = new Date(Number(year), Number(month), 0)
+    const start = new Date(year, month - 1, 1)
+    const end = new Date(year, month, 0)
 
     const sessions = await prisma.attendanceSession.findMany({
       where: {
@@ -115,16 +122,17 @@ export const getClassAttendance = async (req: Request, res: Response): Promise<v
 // Get attendance summary for one student (for parent view)
 export const getStudentSummary = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { studentId } = req.params
-    const { termStart, termEnd } = req.query
+    const studentId = asString(req.params.studentId)
+    const termStart = firstQueryValue(req.query.termStart)
+    const termEnd = firstQueryValue(req.query.termEnd)
 
     const records = await prisma.attendanceRecord.findMany({
       where: {
         studentId,
         session: {
           sessionDate: {
-            gte: new Date(termStart as string),
-            lte: new Date(termEnd as string),
+            gte: termStart ? new Date(termStart) : undefined,
+            lte: termEnd ? new Date(termEnd) : undefined,
           },
         },
       },
@@ -132,11 +140,11 @@ export const getStudentSummary = async (req: Request, res: Response): Promise<vo
       orderBy: { session: { sessionDate: 'asc' } },
     })
 
-    const total   = records.length
-    const present = records.filter(r => r.status === 'PRESENT').length
-    const absent  = records.filter(r => r.status === 'ABSENT').length
-    const late    = records.filter(r => r.status === 'LATE').length
-    const excused = records.filter(r => r.status === 'EXCUSED').length
+    const total = records.length
+    const present = records.filter((r: { status: string }) => r.status === 'PRESENT').length
+    const absent = records.filter((r: { status: string }) => r.status === 'ABSENT').length
+    const late = records.filter((r: { status: string }) => r.status === 'LATE').length
+    const excused = records.filter((r: { status: string }) => r.status === 'EXCUSED').length
     const pct     = total > 0 ? Math.round((present / total) * 100) : 0
 
     res.json({

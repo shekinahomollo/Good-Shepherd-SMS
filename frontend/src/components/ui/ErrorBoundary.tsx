@@ -1,7 +1,8 @@
-import { Component, ReactNode } from 'react'
+import { Component } from 'react'
+import type { ReactNode } from 'react'
 
-interface Props   { children: ReactNode }
-interface State   { hasError: boolean; message: string }
+interface Props { children: ReactNode }
+interface State { hasError: boolean; message: string }
 
 export default class ErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false, message: '' }

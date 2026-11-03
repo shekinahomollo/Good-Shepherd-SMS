@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore }        from './store/authStore'
 
@@ -31,11 +32,11 @@ import ParentReportCards       from './pages/parent/ReportCards'
 // Shared
 import AnnouncementsPage       from './pages/shared/Announcements'
 
-function ProtectedRoute({ children, roles }: { children: JSX.Element; roles: string[] }) {
+function ProtectedRoute({ children, roles }: { children: ReactNode; roles: string[] }) {
   const { user } = useAuthStore()
   if (!user) return <Navigate to="/login" replace />
   if (!roles.includes(user.role)) return <Navigate to="/login" replace />
-  return children
+  return <>{children}</>
 }
 
 const A = ['ADMIN']

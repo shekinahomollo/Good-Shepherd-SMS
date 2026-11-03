@@ -1,11 +1,10 @@
-import { useAuthStore }  from '../../store/authStore'
-import { useNavigate }   from 'react-router-dom'
-import Sidebar           from './Sidebar'
-import Topbar            from './Topbar'
+import type { ReactNode } from 'react'
+import Sidebar from './Sidebar'
+import Topbar from './Topbar'
 
 interface AppShellProps {
-  children:    React.ReactNode
-  pageTitle:   string
+  children: ReactNode
+  pageTitle: string
 }
 
 export default function AppShell({ children, pageTitle }: AppShellProps) {

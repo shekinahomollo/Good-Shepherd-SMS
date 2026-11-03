@@ -1,15 +1,17 @@
 import { Request, Response } from 'express'
 import { prisma }            from '../lib/prisma'
+import { asString, firstQueryValue } from '../utils/query'
 
 // ── GET /api/assignments ──────────────────────────────────────
 export const getAssignments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { classId, termId } = req.query
+    const classId = firstQueryValue(req.query.classId)
+    const termId = firstQueryValue(req.query.termId)
 
     const assignments = await prisma.assignment.findMany({
       where: {
-        ...(classId ? { classId: classId as string } : {}),
-        ...(termId  ? { termId:  termId  as string } : {}),
+        ...(classId ? { classId } : {}),
+        ...(termId ? { termId } : {}),
         isPublished: true,
       },
       include: {
@@ -31,7 +33,7 @@ export const getAssignments = async (req: Request, res: Response): Promise<void>
 // All assignments created by this teacher (including drafts)
 export const getTeacherAssignments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId } = (req as any).user
+    const userId = asString((req as any).user?.userId)
 
     const assignments = await prisma.assignment.findMany({
       where:   { createdById: userId },
@@ -53,7 +55,7 @@ export const getTeacherAssignments = async (req: Request, res: Response): Promis
 // ── POST /api/assignments ─────────────────────────────────────
 export const createAssignment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId } = (req as any).user
+    const userId = asString((req as any).user?.userId)
     const {
       title, description, classId, subjectId,
       termId, dueDate, maxScore, assignmentType,
@@ -83,7 +85,7 @@ export const createAssignment = async (req: Request, res: Response): Promise<voi
 // ── PATCH /api/assignments/:id/publish ───────────────────────
 export const togglePublish = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
 
     const current = await prisma.assignment.findUnique({ where: { id } })
     if (!current) { res.status(404).json({ error: 'Assignment not found' }); return }
@@ -102,7 +104,7 @@ export const togglePublish = async (req: Request, res: Response): Promise<void> 
 // ── PUT /api/assignments/:id ──────────────────────────────────
 export const updateAssignment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id }    = req.params
+    const id = asString(req.params.id)
     const { title, description, dueDate, maxScore, assignmentType } = req.body
 
     const updated = await prisma.assignment.update({
@@ -125,10 +127,10 @@ export const updateAssignment = async (req: Request, res: Response): Promise<voi
 // ── GET /api/assignments/:id/submissions ─────────────────────
 export const getSubmissions = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
 
     const submissions = await prisma.submission.findMany({
-      where:   { assignmentId: id },
+      where: { assignmentId: id },
       include: {
         student: true,
         files:   true,
@@ -145,7 +147,7 @@ export const getSubmissions = async (req: Request, res: Response): Promise<void>
 // ── POST /api/assignments/:id/submit ─────────────────────────
 export const submitAssignment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id }        = req.params
+    const id = asString(req.params.id)
     const { studentId, notes, files } = req.body
 
     const now = new Date()
@@ -201,8 +203,8 @@ export const submitAssignment = async (req: Request, res: Response): Promise<voi
 // ── PATCH /api/assignments/submissions/:id/grade ─────────────
 export const gradeSubmission = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id }              = req.params
-    const { score, remarks }  = req.body
+    const id = asString(req.params.id)
+    const { score, remarks } = req.body
 
     const submission = await prisma.submission.update({
       where: { id },

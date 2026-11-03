@@ -30,7 +30,6 @@ const statusIcon: Record<string, string> = {
 export default function ParentAttendance() {
   const present = DEMO_RECORDS.filter(r => r.status === 'PRESENT').length
   const absent  = DEMO_RECORDS.filter(r => r.status === 'ABSENT').length
-  const late    = DEMO_RECORDS.filter(r => r.status === 'LATE').length
   const pct     = Math.round((present / DEMO_RECORDS.length) * 100)
 
   return (

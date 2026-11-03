@@ -1,16 +1,17 @@
 import { Request, Response } from 'express'
 import { prisma }            from '../lib/prisma'
+import { asString, firstQueryValue } from '../utils/query'
 
 // ── GET /api/grades/class/:classId ────────────────────────────
 export const getClassGrades = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { classId }  = req.params
-    const { termId }   = req.query
+    const classId = asString(req.params.classId)
+    const termId = firstQueryValue(req.query.termId)
 
     const grades = await prisma.grade.findMany({
       where: {
         classId,
-        ...(termId ? { termId: termId as string } : {}),
+        ...(termId ? { termId } : {}),
       },
       include: {
         student:    true,
@@ -29,7 +30,7 @@ export const getClassGrades = async (req: Request, res: Response): Promise<void>
 // ── POST /api/grades ──────────────────────────────────────────
 export const createGrade = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId }   = (req as any).user
+    const userId = asString((req as any).user?.userId)
     const {
       studentId, subjectId, classId, termId,
       gradeType, rawScore, maxScore, remarks, assignmentId,
@@ -64,7 +65,7 @@ export const createGrade = async (req: Request, res: Response): Promise<void> =>
 // ── PUT /api/grades/:id ───────────────────────────────────────
 export const updateGrade = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id }                         = req.params
+    const id = asString(req.params.id)
     const { rawScore, maxScore, remarks } = req.body
 
     const percentage = Math.round((rawScore / maxScore) * 100)
@@ -84,13 +85,13 @@ export const updateGrade = async (req: Request, res: Response): Promise<void> =>
 // ── GET /api/grades/student/:studentId ───────────────────────
 export const getStudentGrades = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { studentId } = req.params
-    const { termId }    = req.query
+    const studentId = asString(req.params.studentId)
+    const termId = firstQueryValue(req.query.termId)
 
     const grades = await prisma.grade.findMany({
       where: {
         studentId,
-        ...(termId ? { termId: termId as string } : {}),
+        ...(termId ? { termId } : {}),
       },
       include: { subject: true, term: true },
       orderBy: { subject: { name: 'asc' } },
@@ -105,13 +106,13 @@ export const getStudentGrades = async (req: Request, res: Response): Promise<voi
 // ── GET /api/grades/skill-assessments/:studentId ─────────────
 export const getSkillAssessments = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { studentId } = req.params
-    const { termId }    = req.query
+    const studentId = asString(req.params.studentId)
+    const termId = firstQueryValue(req.query.termId)
 
     const assessments = await prisma.skillAssessment.findMany({
       where: {
         studentId,
-        ...(termId ? { termId: termId as string } : {}),
+        ...(termId ? { termId } : {}),
       },
       include: {
         skillDescriptor: true,
@@ -127,19 +128,21 @@ export const getSkillAssessments = async (req: Request, res: Response): Promise<
 // ── POST /api/grades/skill-assessments ───────────────────────
 export const saveSkillAssessment = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { userId }                                        = (req as any).user
+    const { userId } = (req as any).user
     const { studentId, skillDescriptorId, termId, rating, remarks } = req.body
 
-    const assessment = await prisma.skillAssessment.upsert({
-      where: {
-        // Use a composite unique if you add one, otherwise findFirst + upsert
-        id: (await prisma.skillAssessment.findFirst({
-          where: { studentId, skillDescriptorId, termId },
-        }))?.id || '',
-      },
-      update:  { rating, remarks },
-      create:  { studentId, skillDescriptorId, termId, rating, remarks, recordedById: userId },
+    const existing = await prisma.skillAssessment.findFirst({
+      where: { studentId, skillDescriptorId, termId },
     })
+
+    const assessment = existing
+      ? await prisma.skillAssessment.update({
+          where: { id: existing.id },
+          data: { rating, remarks },
+        })
+      : await prisma.skillAssessment.create({
+          data: { studentId, skillDescriptorId, termId, rating, remarks, recordedById: userId },
+        })
 
     res.json({ message: 'Skill assessment saved', assessment })
   } catch (err) {

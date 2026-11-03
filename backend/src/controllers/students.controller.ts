@@ -1,19 +1,30 @@
 import { Request, Response } from 'express'
 import { prisma }            from '../lib/prisma'
+import { asString, firstQueryValue } from '../utils/query'
 
 export const getAllStudents = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { search, gradeLevel } = req.query
+    const search = firstQueryValue(req.query.search)
+    const gradeLevel = firstQueryValue(req.query.gradeLevel)
 
     const students = await prisma.student.findMany({
       where: {
         isActive: true,
         ...(search ? {
           OR: [
-            { firstName: { contains: search as string, mode: 'insensitive' } },
-            { lastName:  { contains: search as string, mode: 'insensitive' } },
-            { admissionNumber: { contains: search as string, mode: 'insensitive' } },
+            { firstName: { contains: search, mode: 'insensitive' } },
+            { lastName: { contains: search, mode: 'insensitive' } },
+            { admissionNumber: { contains: search, mode: 'insensitive' } },
           ],
+        } : {}),
+        ...(gradeLevel ? {
+          enrollments: {
+            some: {
+              class: {
+                gradeLevel: { code: gradeLevel },
+              },
+            },
+          },
         } : {}),
       },
       include: {
@@ -40,7 +51,7 @@ export const getAllStudents = async (req: Request, res: Response): Promise<void>
 
 export const getStudent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
 
     const student = await prisma.student.findUnique({
       where: { id },
@@ -93,7 +104,7 @@ export const createStudent = async (req: Request, res: Response): Promise<void> 
 
 export const updateStudent = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
     const { firstName, lastName, photoUrl, isActive } = req.body
 
     const student = await prisma.student.update({
@@ -109,7 +120,7 @@ export const updateStudent = async (req: Request, res: Response): Promise<void> 
 
 export const toggleStudentActive = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { id } = req.params
+    const id = asString(req.params.id)
     const current = await prisma.student.findUnique({ where: { id } })
     if (!current) { res.status(404).json({ error: 'Student not found' }); return }
 
